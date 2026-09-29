@@ -1,0 +1,465 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Behavior Tracking Sheet</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+  :root{
+    --bg:#fff; --fg:#1a1a1a; --line:#d8d8d8; --head:#f4f4f4;
+    --good:#e6f6ea; --goodfg:#1e7a37; --bad:#fdeaea; --badfg:#b3261e;
+    --accent:#2f5d8a; --muted:#6b6b6b; --trophy:#fff6d9; --trophyline:#e0b400;
+    --warn:#fdeeea; --warnline:#c0392b;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--fg);font-family:-apple-system,Segoe UI,Roboto,Arial,sans-serif;padding:18px}
+  h1{font-size:1.3rem;margin:0 0 2px}
+  .sub{color:var(--muted);font-size:.85rem;margin-bottom:12px}
+  .row{display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-bottom:10px}
+  .tab{border:1px solid var(--line);background:var(--head);color:var(--fg);padding:7px 14px;border-radius:8px;cursor:pointer;font-size:.9rem}
+  .tab.active{background:var(--accent);color:#fff;border-color:var(--accent)}
+  select{padding:6px 8px;border:1px solid var(--line);border-radius:6px;background:var(--bg);color:var(--fg);font-size:.85rem}
+  .btn{padding:7px 14px;border:1px solid var(--accent);background:var(--accent);color:#fff;border-radius:8px;cursor:pointer;font-size:.85rem}
+  .btn.secondary{background:var(--bg);color:var(--accent)}
+  .btn.green{border-color:#1e7a37;background:#1e7a37}
+  .tablewrap{overflow-x:auto;max-width:100%;border:1px solid var(--line);border-radius:8px}
+  table{border-collapse:collapse;width:100%;min-width:640px;font-size:.85rem}
+  th,td{border-bottom:1px solid var(--line);border-right:1px solid var(--line);padding:5px 6px;text-align:center}
+  th:last-child,td:last-child{border-right:none}
+  thead th{background:var(--head);position:sticky;top:0;z-index:1}
+  td.name,th.name{text-align:left;min-width:160px;position:sticky;left:0;background:#fbfbfb;font-weight:600;
+    box-shadow:2px 0 4px -2px rgba(0,0,0,.25); z-index:2}
+  thead th.name{background:var(--head);z-index:3}
+  input.score{width:44px;text-align:center;border:1px solid var(--line);border-radius:5px;background:var(--bg);color:var(--fg);padding:4px 2px;font-size:.85rem}
+  input.score.hi{background:var(--good);color:var(--goodfg);font-weight:700;border-color:var(--goodfg)}
+  input.score.lo{background:var(--bad);color:var(--badfg);font-weight:700;border-color:var(--badfg)}
+  td.total{font-weight:700;color:var(--accent)}
+  tr.top td{background:var(--good)}
+  tr.bottom td{background:var(--bad)}
+  input.nameinput{border:none;background:transparent;color:var(--fg);font-weight:600;width:100%;font-size:.85rem}
+  .rm{cursor:pointer;color:var(--muted);border:none;background:transparent;font-size:1rem}
+  .addrow{margin-top:8px;display:flex;gap:6px}
+  .addrow input{padding:6px 8px;border:1px solid var(--line);border-radius:6px;background:var(--bg);color:var(--fg)}
+  .section-title{margin:18px 0 8px;font-size:1rem;font-weight:700}
+  .chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+  .chip{border-radius:20px;padding:4px 10px;font-size:.78rem;border:1px solid var(--line)}
+  .chip.hi{background:var(--good);color:var(--goodfg);border-color:var(--goodfg)}
+  .chip.lo{background:var(--bad);color:var(--badfg);border-color:var(--badfg)}
+  .empty{color:var(--muted);font-size:.85rem}
+  .reward{border:2px solid var(--trophyline);background:var(--trophy);border-radius:10px;padding:14px;margin-top:14px}
+  .reward ol{margin:8px 0 0;padding-left:22px}
+  .reward li{margin:4px 0;font-weight:600}
+  .watch{border:2px solid var(--warnline);background:var(--warn);border-radius:10px;padding:14px;margin-top:14px}
+  .watch ol{margin:8px 0 0;padding-left:22px}
+  .watch li{margin:4px 0;font-weight:600}
+  .legend{font-size:.78rem;color:var(--muted);margin-top:6px}
+  .savebar{font-size:.78rem;color:var(--muted);margin-top:8px;min-height:16px}
+  #printArea{display:none}
+  @media print{
+    body>*:not(#printArea){display:none!important}
+    #printArea{display:block!important}
+    .ptable{width:100%;border-collapse:collapse;margin-bottom:14px}
+    .ptable th,.ptable td{border:1px solid #000;padding:3px 4px;text-align:center;font-size:10px}
+    .ptable th.name,.ptable td.name{text-align:left;min-width:120px}
+    .pbreak{page-break-before:always}
+    .phead{font-size:16px;font-weight:700;margin-bottom:2px}
+    .psub{font-size:12px;margin-bottom:10px}
+  }
+</style>
+</head>
+<body>
+<h1>Behavior Tracking Sheet</h1>
+<div class="sub" id="gradeLine"></div>
+
+<div class="row" id="gradeTabs"></div>
+<div class="row">
+  <label>Month:&nbsp;<select id="monthSelect"></select></label>
+  <label>Week:&nbsp;<select id="weekSelect"></select></label>
+  <button class="btn secondary" id="printBtn">🖨️ Download week as PDF</button>
+  <button class="btn green" id="excelBtn">⬇️ Export to Excel (.xlsx)</button>
+  <button class="btn secondary" id="clearBtn" style="border-color:#c0392b;color:#c0392b">🗑️ Clear this week</button>
+</div>
+<div class="row" id="tabs"></div>
+<div id="panels"></div>
+<div class="savebar" id="savebar"></div>
+
+<div id="printArea"></div>
+
+<script id="data" type="application/json">
+{
+  "grades": {
+    "1": {"students": [], "weeks": {}},
+    "2": {"students": [], "weeks": {}},
+    "3": {"students": [], "weeks": {}},
+    "4": {"students": [], "weeks": {}},
+    "5": {"students": ["Ahmad Salw","Ahmed Faisal","Amani Ahmed","Entisar Basel Atout","Faris Amear Jemal","Ines Bordo","Malik Hussein","Miriam Alsebaai","Omer Naja","Yassin Negash","Yomna Mohy","Jubaida Tasneem"], "weeks": {}},
+    "6": {"students": [], "weeks": {}},
+    "7": {"students": [], "weeks": {}},
+    "8": {"students": [], "weeks": {}}
+  }
+}
+</script>
+
+<script>
+(function(){
+  const DAYS=["Mon","Tue","Wed","Thu","Fri"];
+  const PERIODS=[1,2,3,4,5,6,7];
+  const MONTHS=["January","February","March","April","May","June","July","August","September","October","November","December"];
+  const WEEKS=[1,2,3,4,5];
+  const HI=8, LO=5;
+  const STORE_KEY="behaviorTrackerState_v2";
+  const GRADES=["1","2","3","4","5","6","7","8"];
+  const TABS=[...DAYS,"Overview"];
+
+  let state = loadState();
+  let activeGrade="5";
+  const now=new Date();
+  let activeMonth=MONTHS[now.getMonth()];
+  let activeWeek=1;
+  let activeTab="Mon";
+
+  function loadState(){
+    try{ const saved=localStorage.getItem(STORE_KEY); if(saved) return JSON.parse(saved); }catch(e){}
+    return JSON.parse(document.getElementById('data').textContent);
+  }
+  function persist(){ try{ localStorage.setItem(STORE_KEY, JSON.stringify(state)); }catch(e){} }
+
+  function G(){ return state.grades[activeGrade]; }
+  function weekKey(){ return activeMonth+'_W'+activeWeek; }
+  function W(){
+    const g=G();
+    if(!g.weeks[weekKey()]) g.weeks[weekKey()]={scores:{Mon:{},Tue:{},Wed:{},Thu:{},Fri:{}},photos:{}};
+    if(!g.weeks[weekKey()].photos) g.weeks[weekKey()].photos={};
+    return g.weeks[weekKey()];
+  }
+  function ensure(day,period){
+    const w=W();
+    if(!w.scores[day]) w.scores[day]={};
+    if(!w.scores[day][period]) w.scores[day][period]={};
+    return w.scores[day][period];
+  }
+  function getScore(day,period,idx,weekObj){
+    const w=weekObj||W();
+    const p=w.scores[day] && w.scores[day][period];
+    if(!p) return "";
+    const v=p[idx];
+    return (v===undefined||v===null) ? "" : v;
+  }
+  function dayTotal(idx,day,weekObj){
+    const w=weekObj||W();
+    let sum=0, any=false;
+    PERIODS.forEach(p=>{ const v=getScore(day,p,idx,w); if(v!==""){ sum+=Number(v); any=true; } });
+    return any ? sum : "";
+  }
+  function weeklyAvg(idx,weekObj){
+    const w=weekObj||W();
+    const all=[];
+    DAYS.forEach(d=>PERIODS.forEach(p=>{ const v=getScore(d,p,idx,w); if(v!=="") all.push(Number(v)); }));
+    if(!all.length) return null;
+    return all.reduce((a,b)=>a+b,0)/all.length;
+  }
+  function rankedList(weekObj){
+    const w=weekObj||W();
+    return G().students.map((name,idx)=>({name,idx,avg:weeklyAvg(idx,w)}));
+  }
+
+  function save(){
+    persist();
+    const bar=document.getElementById('savebar');
+    if(bar) bar.textContent='Saved locally in this browser · '+new Date().toLocaleTimeString();
+  }
+
+  function buildGradeTabs(){
+    const el=document.getElementById('gradeTabs'); el.innerHTML='';
+    GRADES.forEach(g=>{
+      const b=document.createElement('button');
+      b.className='tab'+(g===activeGrade?' active':'');
+      b.textContent='Grade '+g;
+      b.onclick=()=>{ activeGrade=g; render(); };
+      el.appendChild(b);
+    });
+  }
+  function buildMonthWeek(){
+    const ms=document.getElementById('monthSelect');
+    ms.innerHTML=MONTHS.map(m=>`<option value="${m}"${m===activeMonth?' selected':''}>${m}</option>`).join('');
+    ms.onchange=()=>{ activeMonth=ms.value; render(); };
+    const ws=document.getElementById('weekSelect');
+    ws.innerHTML=WEEKS.map(w=>`<option value="${w}"${w===activeWeek?' selected':''}>Week ${w}</option>`).join('');
+    ws.onchange=()=>{ activeWeek=Number(ws.value); render(); };
+  }
+  function buildTabs(){
+    const el=document.getElementById('tabs'); el.innerHTML='';
+    TABS.forEach(d=>{
+      const b=document.createElement('button');
+      b.className='tab'+(d===activeTab?' active':'');
+      b.textContent = d==='Overview' ? '📊 Weekly Overview' : d;
+      b.onclick=()=>{ activeTab=d; render(); };
+      el.appendChild(b);
+    });
+  }
+  function applyFlag(inp,val){
+    inp.classList.remove('hi','lo');
+    if(val==="") return;
+    const n=Number(val);
+    if(n>=HI) inp.classList.add('hi'); else if(n<=LO) inp.classList.add('lo');
+  }
+
+  function buildDayTable(day){
+    const wrap=document.createElement('div'); wrap.className='tablewrap';
+    const table=document.createElement('table');
+    const thead=document.createElement('thead');
+    const trh=document.createElement('tr');
+    trh.innerHTML='<th class="name">Student</th>'+PERIODS.map(p=>`<th>P${p}</th>`).join('')+'<th>Total</th><th></th>';
+    thead.appendChild(trh); table.appendChild(thead);
+    const tbody=document.createElement('tbody');
+    G().students.forEach((name,idx)=>{
+      const tr=document.createElement('tr');
+      const tdName=document.createElement('td'); tdName.className='name';
+      const ni=document.createElement('input'); ni.className='nameinput'; ni.value=name;
+      ni.onchange=()=>{ G().students[idx]=ni.value.trim()||name; save(); };
+      tdName.appendChild(ni); tr.appendChild(tdName);
+      PERIODS.forEach(p=>{
+        const td=document.createElement('td');
+        const inp=document.createElement('input');
+        inp.type='number'; inp.min=0; inp.max=10; inp.className='score';
+        inp.value=getScore(day,p,idx);
+        applyFlag(inp,inp.value);
+        inp.onchange=()=>{
+          const v=inp.value.trim();
+          const bucket=ensure(day,p);
+          if(v==="") delete bucket[idx]; else bucket[idx]=Math.max(0,Math.min(10,Number(v)));
+          applyFlag(inp, bucket[idx]===undefined?"":bucket[idx]);
+          save(); renderSummary(day); refreshTotal(tr,idx,day);
+        };
+        td.appendChild(inp); tr.appendChild(td);
+      });
+      const tdTotal=document.createElement('td'); tdTotal.className='total'; tdTotal.textContent=dayTotal(idx,day);
+      tr.appendChild(tdTotal);
+      const tdRm=document.createElement('td');
+      const rm=document.createElement('button'); rm.className='rm'; rm.textContent='✕'; rm.title='Remove student';
+      rm.onclick=()=>{
+        if(!confirm('Remove '+name+' from Grade '+activeGrade+'\'s roster?')) return;
+        G().students.splice(idx,1);
+        Object.values(G().weeks).forEach(w=>{
+          DAYS.forEach(d=>PERIODS.forEach(p=>{
+            const bucket=w.scores[d]&&w.scores[d][p]; if(!bucket) return;
+            const ns={}; Object.keys(bucket).forEach(k=>{ const ik=Number(k);
+              if(ik<idx) ns[ik]=bucket[k]; else if(ik>idx) ns[ik-1]=bucket[k]; });
+            w.scores[d][p]=ns;
+          }));
+        });
+        save(); render();
+      };
+      tdRm.appendChild(rm); tr.appendChild(tdRm);
+      tbody.appendChild(tr);
+    });
+    table.appendChild(tbody); wrap.appendChild(table);
+    return wrap;
+  }
+  function refreshTotal(tr,idx,day){
+    const cells=tr.querySelectorAll('td'); cells[PERIODS.length+1].textContent=dayTotal(idx,day);
+  }
+
+  function renderSummary(day){
+    const el=document.getElementById('summary-'+day); if(!el) return;
+    let html='';
+    PERIODS.forEach(p=>{
+      const bucket=(W().scores[day]&&W().scores[day][p])||{};
+      const hi=[],lo=[];
+      Object.keys(bucket).forEach(k=>{
+        const v=bucket[k]; const nm=G().students[Number(k)]; if(!nm) return;
+        if(v>=HI) hi.push(nm); else if(v<=LO) lo.push(nm);
+      });
+      if(hi.length||lo.length){
+        html+=`<div style="margin:6px 0"><strong>P${p}</strong> `;
+        if(hi.length) html+=`<span class="chip hi">8+: ${hi.join(', ')}</span> `;
+        if(lo.length) html+=`<span class="chip lo">≤5: ${lo.join(', ')}</span>`;
+        html+='</div>';
+      }
+    });
+    el.innerHTML = html || '<div class="empty">No scores entered yet for '+day+'.</div>';
+  }
+
+  function buildDayPanel(day){
+    const panel=document.createElement('div'); panel.id='panel-'+day;
+    panel.style.display = (day===activeTab)?'block':'none';
+    panel.appendChild(buildDayTable(day));
+    const addRow=document.createElement('div'); addRow.className='addrow';
+    const addInput=document.createElement('input'); addInput.placeholder='Add student name';
+    const addBtn=document.createElement('button'); addBtn.className='btn secondary'; addBtn.textContent='+ Add';
+    addBtn.onclick=()=>{ const v=addInput.value.trim(); if(!v) return; G().students.push(v); addInput.value=''; save(); render(); };
+    addRow.appendChild(addInput); addRow.appendChild(addBtn); panel.appendChild(addRow);
+    const secTitle=document.createElement('div'); secTitle.className='section-title';
+    secTitle.textContent='Period flags for '+day+' (score 8+ or 5 and below)';
+    panel.appendChild(secTitle);
+    const summary=document.createElement('div'); summary.id='summary-'+day; panel.appendChild(summary);
+
+    const photoTitle=document.createElement('div'); photoTitle.className='section-title';
+    photoTitle.textContent='📷 Hard-copy photo for '+day;
+    panel.appendChild(photoTitle);
+    const photoBox=document.createElement('div');
+    const existing=W().photos[day];
+    if(existing){
+      photoBox.innerHTML='<img src="'+existing+'" style="max-width:220px;max-height:160px;border:1px solid var(--line);border-radius:6px;display:block;margin-bottom:6px">';
+      const rmP=document.createElement('button'); rmP.className='btn secondary'; rmP.textContent='Remove photo';
+      rmP.onclick=()=>{ delete W().photos[day]; save(); render(); };
+      photoBox.appendChild(rmP);
+    } else {
+      const fi=document.createElement('input'); fi.type='file'; fi.accept='image/*'; fi.capture='environment';
+      fi.onchange=()=>{
+        const f=fi.files[0]; if(!f) return;
+        const reader=new FileReader();
+        reader.onload=()=>{ W().photos[day]=reader.result; save(); render(); };
+        reader.readAsDataURL(f);
+      };
+      photoBox.appendChild(fi);
+      const note=document.createElement('div'); note.className='empty';
+      note.style.marginTop='6px';
+      note.textContent='This just attaches the photo as your record — it does not read the marks automatically. To have the marks filled in for you, upload this same photo to Claude in your chat and ask it to fill in this sheet; Claude can read the handwriting and hand you back an updated file.';
+      photoBox.appendChild(note);
+    }
+    panel.appendChild(photoBox);
+    return panel;
+  }
+
+  function buildOverviewPanel(){
+    const panel=document.createElement('div'); panel.id='panel-Overview';
+    panel.style.display = (activeTab==='Overview')?'block':'none';
+
+    const ranked=rankedList().filter(s=>s.avg!==null).sort((a,b)=>b.avg-a.avg);
+    const topIdx=new Set(ranked.slice(0,3).map(s=>s.idx));
+    const bottomIdx=new Set(ranked.length>3 ? ranked.slice(-3).map(s=>s.idx) : []);
+
+    const wrap=document.createElement('div'); wrap.className='tablewrap';
+    const table=document.createElement('table');
+    const thead=document.createElement('thead');
+    const trh=document.createElement('tr');
+    trh.innerHTML='<th class="name">Student</th>'+DAYS.map(d=>`<th>${d}<br>Total</th>`).join('')+'<th>Weekly<br>Avg</th>';
+    thead.appendChild(trh); table.appendChild(thead);
+    const tbody=document.createElement('tbody');
+    G().students.forEach((name,idx)=>{
+      const tr=document.createElement('tr');
+      if(topIdx.has(idx)) tr.className='top';
+      else if(bottomIdx.has(idx)) tr.className='bottom';
+      let row='<td class="name">'+ (topIdx.has(idx)?'🏆 ':'') + (bottomIdx.has(idx)?'⚠️ ':'') + name + '</td>';
+      DAYS.forEach(d=>{ row+='<td>'+dayTotal(idx,d)+'</td>'; });
+      const av=weeklyAvg(idx);
+      row+='<td class="total">'+(av===null?'—':av.toFixed(1))+'</td>';
+      tr.innerHTML=row;
+      tbody.appendChild(tr);
+    });
+    table.appendChild(tbody); wrap.appendChild(table);
+    panel.appendChild(wrap);
+
+    const rewardBox=document.createElement('div'); rewardBox.className='reward';
+    let rhtml='<div style="font-weight:700;font-size:1rem">🏆 Top 3 — Friday Reward ('+activeMonth+' Week '+activeWeek+')</div>';
+    if(!ranked.length) rhtml+='<div class="empty" style="margin-top:6px">No scores entered yet this week.</div>';
+    else rhtml+='<ol>'+ranked.slice(0,3).map(s=>`<li>${s.name} — avg ${s.avg.toFixed(1)}</li>`).join('')+'</ol>';
+    rewardBox.innerHTML=rhtml; panel.appendChild(rewardBox);
+
+    if(ranked.length>3){
+      const watchBox=document.createElement('div'); watchBox.className='watch';
+      let whtml='<div style="font-weight:700;font-size:1rem">⚠️ Bottom 3 — Needs Support</div>';
+      whtml+='<ol>'+ranked.slice(-3).reverse().map(s=>`<li>${s.name} — avg ${s.avg.toFixed(1)}</li>`).join('')+'</ol>';
+      watchBox.innerHTML=whtml; panel.appendChild(watchBox);
+    }
+    return panel;
+  }
+
+  function render(){
+    document.getElementById('gradeLine').textContent=
+      'Grade '+activeGrade+' · '+activeMonth+' · Week '+activeWeek+' · scores per period (0–10) · collected at the end of period 6 each day';
+    buildGradeTabs(); buildMonthWeek(); buildTabs();
+    const panels=document.getElementById('panels'); panels.innerHTML='';
+    DAYS.forEach(d=>panels.appendChild(buildDayPanel(d)));
+    panels.appendChild(buildOverviewPanel());
+    DAYS.forEach(d=>renderSummary(d));
+  }
+
+  function esc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;'); }
+  function printTable(days){
+    const w=W();
+    let h='<table class="ptable"><thead><tr><th class="name" rowspan="2">Student</th>';
+    days.forEach(d=>{ h+=`<th colspan="8">${d}</th>`; });
+    h+='</tr><tr>';
+    days.forEach(()=>{ PERIODS.forEach(p=>{ h+=`<th>P${p}</th>`; }); h+='<th>Total</th>'; });
+    h+='</tr></thead><tbody>';
+    G().students.forEach((name,idx)=>{
+      h+='<tr><td class="name">'+esc(name)+'</td>';
+      days.forEach(d=>{
+        PERIODS.forEach(p=>{ h+='<td>'+esc(getScore(d,p,idx,w))+'</td>'; });
+        h+='<td><b>'+esc(dayTotal(idx,d,w))+'</b></td>';
+      });
+      h+='</tr>';
+    });
+    h+='</tbody></table>';
+    return h;
+  }
+  function printWeek(){
+    const area=document.getElementById('printArea');
+    let html='<div class="phead">Um Al-Qura Islamic School — Behavior Tracking Sheet</div>';
+    html+='<div class="psub">Grade '+esc(activeGrade)+' &nbsp;·&nbsp; '+esc(activeMonth)+' &nbsp;·&nbsp; Week '+esc(activeWeek)+'</div>';
+    html+=printTable(['Mon','Tue']);
+    html+='<div class="pbreak"></div>';
+    html+='<div class="phead">Um Al-Qura Islamic School — Behavior Tracking Sheet</div>';
+    html+='<div class="psub">Grade '+esc(activeGrade)+' &nbsp;·&nbsp; '+esc(activeMonth)+' &nbsp;·&nbsp; Week '+esc(activeWeek)+'</div>';
+    html+=printTable(['Wed','Thu','Fri']);
+    const ranked=rankedList().filter(s=>s.avg!==null).sort((a,b)=>b.avg-a.avg);
+    if(ranked.length){
+      html+='<div style="margin-top:10px;font-weight:700">🏆 Top 3 — Friday Reward</div><ol>';
+      ranked.slice(0,3).forEach(s=>{ html+='<li>'+esc(s.name)+' — avg '+s.avg.toFixed(1)+'</li>'; });
+      html+='</ol>';
+      if(ranked.length>3){
+        html+='<div style="margin-top:6px;font-weight:700">⚠️ Bottom 3 — Needs Support</div><ol>';
+        ranked.slice(-3).reverse().forEach(s=>{ html+='<li>'+esc(s.name)+' — avg '+s.avg.toFixed(1)+'</li>'; });
+        html+='</ol>';
+      }
+    }
+    area.innerHTML=html;
+    window.print();
+  }
+
+  function exportExcel(){
+    if(typeof XLSX==='undefined'){
+      alert('Excel export needs an internet connection the first time this page loads (it loads a small library). Please reconnect and try again.');
+      return;
+    }
+    const wb=XLSX.utils.book_new();
+    const w=W();
+    DAYS.forEach(day=>{
+      const rows=[['Student',...PERIODS.map(p=>'P'+p),'Total']];
+      G().students.forEach((name,idx)=>{
+        rows.push([name, ...PERIODS.map(p=>{ const v=getScore(day,p,idx,w); return v===''?'':v; }), dayTotal(idx,day,w)]);
+      });
+      const ws=XLSX.utils.aoa_to_sheet(rows);
+      XLSX.utils.book_append_sheet(wb, ws, day);
+    });
+    const ranked=rankedList(w);
+    const sorted=[...ranked].filter(s=>s.avg!==null).sort((a,b)=>b.avg-a.avg);
+    const topIdx=new Set(sorted.slice(0,3).map(s=>s.idx));
+    const bottomIdx=new Set(sorted.length>3 ? sorted.slice(-3).map(s=>s.idx) : []);
+    const orows=[['Student','Mon Total','Tue Total','Wed Total','Thu Total','Fri Total','Weekly Avg','Note']];
+    ranked.forEach(s=>{
+      const note = topIdx.has(s.idx) ? 'Top 3 - Friday Reward' : (bottomIdx.has(s.idx) ? 'Bottom 3 - Needs Support' : '');
+      orows.push([s.name, dayTotal(s.idx,'Mon',w), dayTotal(s.idx,'Tue',w), dayTotal(s.idx,'Wed',w), dayTotal(s.idx,'Thu',w), dayTotal(s.idx,'Fri',w), s.avg===null?'':Number(s.avg.toFixed(1)), note]);
+    });
+    const ows=XLSX.utils.aoa_to_sheet(orows);
+    XLSX.utils.book_append_sheet(wb, ows, 'Weekly Overview');
+    XLSX.writeFile(wb, 'Grade'+activeGrade+'_'+activeMonth+'_Week'+activeWeek+'_Behavior.xlsx');
+  }
+
+  function clearWeek(){
+    if(!confirm('Clear ALL scores and photos for Grade '+activeGrade+' — '+activeMonth+' Week '+activeWeek+'? This cannot be undone. (Export or download the PDF first if you need a record.)')) return;
+    G().weeks[weekKey()]={scores:{Mon:{},Tue:{},Wed:{},Thu:{},Fri:{}},photos:{}};
+    save(); render();
+  }
+
+  document.getElementById('printBtn').onclick=printWeek;
+  document.getElementById('excelBtn').onclick=exportExcel;
+  document.getElementById('clearBtn').onclick=clearWeek;
+  render();
+})();
+</script>
+</body>
+</html>
