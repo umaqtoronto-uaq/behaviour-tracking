@@ -163,7 +163,7 @@
 
   // ---------- backend wiring (Google Drive via Apps Script) ----------
   // >>> PASTE your Apps Script Web app URL between the quotes <<<
-  const API_URL='https://script.google.com/macros/s/AKfycbzsNGCJVWVM6Uww24ghfSC948YdpLub5fYqvHmObXNtoFzWuTrsB_ClhRNW1bx7co8d/exec';
+  const API_URL='https://script.google.com/macros/s/AKfycbza4LwFAYx4x16SjRsBF3vNfi6RRzZlCIFRjz4Ci_t30_LdcMaPlflQPNRqN0SNrBNq/exec';
   const hasGS = API_URL.indexOf('https://')===0;
   async function gs(fn){
     const args=Array.prototype.slice.call(arguments,1);
@@ -179,13 +179,15 @@
     const m=String(e&&e.message?e.message:e);
     if(/unknown function/i.test(m))
       return 'Your Google Apps Script is still running an OLD version that cannot read photos.\n\nIn the Apps Script editor: Deploy → Manage deployments → ✏️ (Edit) → Version: "New version" → Deploy.\nThen try the photo again.';
-    if(/ANTHROPIC_API_KEY/.test(m))
-      return 'The photo-reading key is missing.\n\nIn the Apps Script editor: ⚙️ Project Settings → Script properties → Add property:\nName: ANTHROPIC_API_KEY\nValue: your API key\nThen try again.';
+    if(/ANTHROPIC_API_KEY|GEMINI_API_KEY/.test(m))
+      return 'The photo-reading key is missing.\n\nIn the Apps Script editor: ⚙️ Project Settings → Script properties → Add property:\nName: GEMINI_API_KEY\nValue: your key from aistudio.google.com\nThen try again. (If you still see this, deploy a New version of the script.)';
     if(/UrlFetchApp|permission|authoriz/i.test(m))
       return 'Apps Script has not been given permission to contact the photo-reading service.\n\nIn the Apps Script editor: choose "setupCheck" in the function menu at the top, click ▶ Run, and click Allow on the permission screens. Then Deploy → Manage deployments → Edit → New version → Deploy.';
-    if(/AI error 401/.test(m)) return 'The ANTHROPIC_API_KEY in Script properties is wrong or has been revoked. Please paste a valid key.';
-    if(/AI error 400/.test(m) && /credit|balance|billing/i.test(m)) return 'The API account has no credit left. Add credit in the Anthropic Console, then try again.';
-    if(/AI error (429|529|5\d\d)/.test(m)) return 'The photo-reading service is busy right now. Wait a minute and try again.';
+    if(/AI error (400|401|403)/.test(m) && /API_KEY|api key|PERMISSION_DENIED|UNAUTHENTICATED/i.test(m))
+      return 'The GEMINI_API_KEY in Script properties is wrong or has been deleted. Copy the key again from aistudio.google.com and paste it into Script properties.';
+    if(/AI error 429/.test(m)) return 'The free Gemini limit has been reached for now. Wait a few minutes (or until tomorrow if it keeps happening) and try again.';
+    if(/AI error 404/.test(m)) return 'The Gemini model could not be found. Tell Claude this message so the model name in the script can be updated:\n\n'+m;
+    if(/AI error (5\d\d)/.test(m)) return 'The photo-reading service is busy right now. Wait a minute and try again.';
     if(/NOT_JSON/.test(m)) return 'The Apps Script web app sent back an error page instead of data.\n\nCheck: Deploy → Manage deployments → Edit → "Who has access" must be "Anyone", then deploy a New version.';
     if(/Failed to fetch|NetworkError|Load failed/i.test(m)) return 'Could not reach Google. Check the internet connection and try again.';
     return 'Could not read the photo: '+m;
