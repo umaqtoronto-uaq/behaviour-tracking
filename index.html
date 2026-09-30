@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Behavior Tracking Sheet</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <style>
@@ -12,28 +12,34 @@
     --accent:#6d4fd1; --accent2:#00a3a3; --muted:#6b6b6b; --trophy:#fff3cf; --trophyline:#e0a800;
     --warn:#fdeeea; --warnline:#c0392b;
   }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){ --bg:#161616; --fg:#eee; --line:#3a3a55; --head:#232336; --muted:#aaa; }
+  }
+  :root[data-theme="dark"]{ --bg:#161616; --fg:#eee; --line:#3a3a55; --head:#232336; --muted:#aaa; }
   *{box-sizing:border-box}
-  body{margin:0;background:linear-gradient(180deg,#f6f4ff 0%,#ffffff 260px);color:var(--fg);font-family:-apple-system,Segoe UI,Roboto,Arial,sans-serif;padding:18px}
-  .banner{background:linear-gradient(120deg,#6d4fd1,#00a3a3);color:#fff;border-radius:14px;padding:16px 20px;margin-bottom:14px;box-shadow:0 4px 14px rgba(109,79,209,.25)}
+  body{margin:0;background:linear-gradient(180deg,#f6f4ff 0%,#ffffff 260px);color:var(--fg);font-family:-apple-system,Segoe UI,Roboto,Arial,sans-serif;
+    padding:18px;padding-top:calc(18px + env(safe-area-inset-top,0px));padding-bottom:calc(18px + env(safe-area-inset-bottom,0px))}
+  .banner{background:linear-gradient(120deg,#6d4fd1,#00a3a3);color:#fff;border-radius:14px;padding:16px 20px;margin-bottom:14px;box-shadow:0 4px 14px rgba(109,79,209,.25);display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px}
   .banner h1{font-size:1.35rem;margin:0 0 4px;color:#fff}
   .banner .sub{color:#eee6ff;font-size:.85rem;margin:0}
+  .status{font-size:.78rem;background:rgba(255,255,255,.18);padding:5px 12px;border-radius:20px;white-space:nowrap}
   .row{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:10px}
-  .tab{border:1px solid var(--line);background:var(--head);color:#3a3a55;padding:7px 14px;border-radius:20px;cursor:pointer;font-size:.9rem;font-weight:600;transition:transform .1s}
-  .tab:hover{transform:translateY(-1px)}
+  .tab{border:1px solid var(--line);background:var(--head);color:#3a3a55;padding:7px 14px;border-radius:20px;cursor:pointer;font-size:.9rem;font-weight:600}
   .tab.active{background:linear-gradient(120deg,var(--accent),var(--accent2));color:#fff;border-color:transparent;box-shadow:0 2px 8px rgba(109,79,209,.35)}
   select{padding:6px 10px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--fg);font-size:.85rem}
   .btn{padding:8px 16px;border:none;background:linear-gradient(120deg,var(--accent),var(--accent2));color:#fff;border-radius:20px;cursor:pointer;font-size:.85rem;font-weight:600;box-shadow:0 2px 6px rgba(109,79,209,.3)}
+  .btn[disabled]{opacity:.5;cursor:not-allowed}
   .btn.secondary{background:#fff;color:var(--accent);border:1.5px solid var(--accent);box-shadow:none}
   .btn.green{background:linear-gradient(120deg,#1e9e5a,#22c37a)}
   .btn.amber{background:linear-gradient(120deg,#e0a800,#f4c430)}
+  .btn.red{background:#fff;color:#c0392b;border:1.5px solid #c0392b;box-shadow:none}
   .tablewrap{overflow-x:auto;max-width:100%;border:1px solid var(--line);border-radius:8px}
   table{border-collapse:collapse;width:100%;min-width:640px;font-size:.85rem}
   th,td{border-bottom:1px solid var(--line);border-right:1px solid var(--line);padding:5px 6px;text-align:center}
   th:last-child,td:last-child{border-right:none}
   thead th{background:var(--head);color:#3a3a55;position:sticky;top:0;z-index:1}
   tbody tr:nth-child(even){background:#faf9ff}
-  td.name,th.name{text-align:left;min-width:160px;position:sticky;left:0;background:#f1eeff;font-weight:600;
-    box-shadow:2px 0 4px -2px rgba(0,0,0,.25); z-index:2}
+  td.name,th.name{text-align:left;min-width:160px;position:sticky;left:0;background:#f1eeff;font-weight:600;box-shadow:2px 0 4px -2px rgba(0,0,0,.25);z-index:2}
   thead th.name{background:var(--head);z-index:3}
   input.score{width:44px;text-align:center;border:1px solid var(--line);border-radius:5px;background:var(--bg);color:var(--fg);padding:4px 2px;font-size:.85rem}
   input.score.hi{background:var(--good);color:var(--goodfg);font-weight:700;border-color:var(--goodfg)}
@@ -58,7 +64,6 @@
   .watch ol{margin:8px 0 0;padding-left:22px}
   .watch li{margin:4px 0;font-weight:600}
   .legend{font-size:.78rem;color:var(--muted);margin-top:6px}
-  .savebar{font-size:.78rem;color:var(--muted);margin-top:8px;min-height:16px}
   #printArea{display:none}
   @media print{
     body>*:not(#printArea){display:none!important}
@@ -74,8 +79,11 @@
 </head>
 <body>
 <div class="banner">
-  <h1>🏫 Behavior Tracking Sheet</h1>
-  <div class="sub" id="gradeLine"></div>
+  <div>
+    <h1>🏫 Behavior Tracking Sheet</h1>
+    <div class="sub" id="gradeLine"></div>
+  </div>
+  <div class="status" id="statusPill">Connecting…</div>
 </div>
 
 <div class="row" id="gradeTabs"></div>
@@ -84,33 +92,17 @@
   <label>Week:&nbsp;<select id="weekSelect"></select></label>
   <button class="btn secondary" id="printBtn">🖨️ Download week as PDF</button>
   <button class="btn green" id="excelBtn">⬇️ Export to Excel (.xlsx)</button>
-  <button class="btn secondary" id="clearBtn" style="border-color:#c0392b;color:#c0392b">🗑️ Clear this week</button>
+  <button class="btn red" id="clearBtn">🗑️ Clear this week</button>
 </div>
 <div class="row">
   <button class="btn amber" id="rosterBtn">📥 Upload roster (Excel)</button>
   <input type="file" id="rosterFile" accept=".xlsx,.xls,.csv" style="display:none">
-  <span class="empty" id="rosterHint">File needs columns "Grade" and "Student Name".</span>
+  <span class="empty">Needs columns "Grade" and "Student Name".</span>
 </div>
 <div class="row" id="tabs"></div>
 <div id="panels"></div>
-<div class="savebar" id="savebar"></div>
 
 <div id="printArea"></div>
-
-<script id="data" type="application/json">
-{
-  "grades": {
-    "1": {"students": [], "weeks": {}},
-    "2": {"students": [], "weeks": {}},
-    "3": {"students": [], "weeks": {}},
-    "4": {"students": [], "weeks": {}},
-    "5": {"students": ["Ahmad Salw","Ahmed Faisal","Amani Ahmed","Entisar Basel Atout","Faris Amear Jemal","Ines Bordo","Malik Hussein","Miriam Alsebaai","Omer Naja","Yassin Negash","Yomna Mohy","Jubaida Tasneem"], "weeks": {}},
-    "6": {"students": [], "weeks": {}},
-    "7": {"students": [], "weeks": {}},
-    "8": {"students": [], "weeks": {}}
-  }
-}
-</script>
 
 <script>
 (function(){
@@ -119,85 +111,154 @@
   const MONTHS=["January","February","March","April","May","June","July","August","September","October","November","December"];
   const WEEKS=[1,2,3,4,5];
   const HI=8, LO=5;
-  const STORE_KEY="behaviorTrackerState_v2";
   const GRADES=["1","2","3","4","5","6","7","8"];
   const TABS=[...DAYS,"Overview"];
+  const emptyWeek=()=>({scores:{Mon:{},Tue:{},Wed:{},Thu:{},Fri:{}},photos:{}});
 
-  let state = loadState();
-  let activeGrade="5";
+  let canWrite=true;
+  let rosterCache={}, weekCache=emptyWeek();
+  let unsubRoster=null, unsubWeek=null;
+  let activeGrade="1";
   const now=new Date();
   let activeMonth=MONTHS[now.getMonth()];
   let activeWeek=1;
   let activeTab="Mon";
 
-  function loadState(){
-    try{ const saved=localStorage.getItem(STORE_KEY); if(saved) return JSON.parse(saved); }catch(e){}
-    return JSON.parse(document.getElementById('data').textContent);
-  }
-  function persist(){ try{ localStorage.setItem(STORE_KEY, JSON.stringify(state)); }catch(e){} }
-
-  function G(){ return state.grades[activeGrade]; }
-  function weekKey(){ return activeMonth+'_W'+activeWeek; }
-  function W(){
-    const g=G();
-    if(!g.weeks[weekKey()]) g.weeks[weekKey()]={scores:{Mon:{},Tue:{},Wed:{},Thu:{},Fri:{}},photos:{}};
-    if(!g.weeks[weekKey()].photos) g.weeks[weekKey()].photos={};
-    return g.weeks[weekKey()];
-  }
-  function ensure(day,period){
-    const w=W();
-    if(!w.scores[day]) w.scores[day]={};
-    if(!w.scores[day][period]) w.scores[day][period]={};
-    return w.scores[day][period];
-  }
-  function getScore(day,period,idx,weekObj){
-    const w=weekObj||W();
-    const p=w.scores[day] && w.scores[day][period];
+  function weekId(){ return activeGrade+'_'+activeMonth+'_W'+activeWeek; }
+  function students(){ return rosterCache[activeGrade]||[]; }
+  function getScore(day,period,idx,w){
+    w=w||weekCache;
+    const p=w.scores[day]&&w.scores[day][period];
     if(!p) return "";
     const v=p[idx];
-    return (v===undefined||v===null) ? "" : v;
+    return (v===undefined||v===null)?"":v;
   }
-  function dayTotal(idx,day,weekObj){
-    const w=weekObj||W();
+  function dayTotal(idx,day,w){
+    w=w||weekCache;
     let sum=0, any=false;
     PERIODS.forEach(p=>{ const v=getScore(day,p,idx,w); if(v!==""){ sum+=Number(v); any=true; } });
-    return any ? sum : "";
+    return any?sum:"";
   }
-  function weeklyAvg(idx,weekObj){
-    const w=weekObj||W();
+  function weeklyAvg(idx,w){
+    w=w||weekCache;
     const all=[];
     DAYS.forEach(d=>PERIODS.forEach(p=>{ const v=getScore(d,p,idx,w); if(v!=="") all.push(Number(v)); }));
     if(!all.length) return null;
     return all.reduce((a,b)=>a+b,0)/all.length;
   }
-  function rankedList(weekObj){
-    const w=weekObj||W();
-    return G().students.map((name,idx)=>({name,idx,avg:weeklyAvg(idx,w)}));
+  function rankedList(w){ return students().map((name,idx)=>({name,idx,avg:weeklyAvg(idx,w)})); }
+
+  function setStatus(text,bg){
+    const el=document.getElementById('statusPill');
+    el.textContent=text;
+    if(bg) el.style.background=bg;
   }
 
-  function save(){
-    persist();
-    const bar=document.getElementById('savebar');
-    if(bar) bar.textContent='Saved locally in this browser · '+new Date().toLocaleTimeString();
+  // ---------- backend wiring (Google Drive via Apps Script) ----------
+  // >>> PASTE your Apps Script Web app URL between the quotes <<<
+  const API_URL='https://script.google.com/macros/s/AKfycbztJu8YbQZ1RMDgpLO7ABJ2mhrp7cOtKDPuKKJxafQHS-O1V4El7tS43ODHQtD-EHZS/exec';
+  const hasGS = API_URL.indexOf('https://')===0;
+  async function gs(fn){
+    const args=Array.prototype.slice.call(arguments,1);
+    let pass=null; try{ pass=localStorage.getItem('bt_pass'); }catch(e){}
+    if(!pass){ pass=prompt('Enter the tracker passcode:'); if(!pass) throw new Error('no passcode'); }
+    const r=await fetch(API_URL,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({token:pass,fn:fn,args:args})});
+    const j=await r.json();
+    if(!j.ok){
+      if(j.error==='unauthorized'){ try{ localStorage.removeItem('bt_pass'); }catch(e){} }
+      throw new Error(j.error);
+    }
+    try{ localStorage.setItem('bt_pass',pass); }catch(e){}
+    return j.result;
+  }
+  const sleep=ms=>new Promise(r=>setTimeout(r,ms));
+  const pending={}; let flushing=false, retryTimer=null;
+  function queueSave(key,fn,args){ pending[key]={fn,args}; flush(); }
+  async function flush(){
+    if(flushing) return; flushing=true;
+    setStatus('🔄 Saving to Drive…');
+    try{
+      while(Object.keys(pending).length){
+        const k=Object.keys(pending)[0]; const job=pending[k]; delete pending[k];
+        try{ await gs.apply(null,[job.fn].concat(job.args)); }
+        catch(e){
+          if(!pending[k]) pending[k]=job;
+          setStatus('⚠️ Could not save — retrying…','rgba(255,80,80,.4)');
+          clearTimeout(retryTimer); retryTimer=setTimeout(flush,5000);
+          return;
+        }
+      }
+      setStatus('🟢 Saved to Google Drive');
+    } finally { flushing=false; }
+  }
+  async function idle(){ while(flushing||Object.keys(pending).length){ await sleep(200); } }
+
+  let loadToken=0;
+  async function initBackend(){
+    if(!hasGS){
+      setStatus('⚠️ Not connected to Drive — add your Web app URL in the code','rgba(255,255,255,.3)');
+      render(); return;
+    }
+    subscribeAll();
+  }
+  async function subscribeAll(){
+    if(!hasGS) return;
+    const t=++loadToken, g=activeGrade, wid=weekId();
+    weekCache=emptyWeek(); render();
+    setStatus('🔄 Loading from Drive…');
+    try{
+      const r=await Promise.all([gs('getRoster',g),gs('getWeek',wid)]);
+      if(t!==loadToken) return;
+      rosterCache[g]=(r[0]&&r[0].list)||[];
+      weekCache=r[1]||emptyWeek();
+      if(!weekCache.photos) weekCache.photos={};
+      setStatus('🟢 Synced with Google Drive');
+      render();
+    }catch(e){ if(t===loadToken) setStatus('⚠️ Could not load from Drive','rgba(255,80,80,.4)'); }
+  }
+  async function writeWeek(newWeek){
+    weekCache=newWeek; render();
+    if(!hasGS) return;
+    queueSave('week:'+weekId(),'saveWeek',[weekId(),newWeek]);
+  }
+  async function writeRoster(grade,list){
+    rosterCache[grade]=list; render();
+    if(!hasGS) return;
+    queueSave('roster:'+grade,'saveRoster',[grade,list]);
+  }
+  function shrinkImage(file,max){
+    return new Promise((res,rej)=>{
+      const img=new Image(), url=URL.createObjectURL(file);
+      img.onload=()=>{
+        const s=Math.min(1,max/Math.max(img.width,img.height));
+        const c=document.createElement('canvas'); c.width=Math.round(img.width*s); c.height=Math.round(img.height*s);
+        c.getContext('2d').drawImage(img,0,0,c.width,c.height);
+        URL.revokeObjectURL(url);
+        res(c.toDataURL('image/jpeg',0.8).split(',')[1]);
+      };
+      img.onerror=()=>rej(new Error('bad image'));
+      img.src=url;
+    });
   }
 
+  // ---------- UI builders ----------
   function buildGradeTabs(){
     const el=document.getElementById('gradeTabs'); el.innerHTML='';
     GRADES.forEach(g=>{
       const b=document.createElement('button');
       b.className='tab'+(g===activeGrade?' active':'');
       b.textContent='Grade '+g;
-      b.onclick=()=>{ activeGrade=g; render(); };
+      b.onclick=()=>{ if(g===activeGrade) return; activeGrade=g; subscribeAll(); render(); };
       el.appendChild(b);
     });
   }
   function buildMonthWeek(){
     const ms=document.getElementById('monthSelect');
     ms.innerHTML=MONTHS.map(m=>`<option value="${m}"${m===activeMonth?' selected':''}>${m}</option>`).join('');
-    ms.onchange=()=>{ activeMonth=ms.value; render(); };
+    ms.onchange=()=>{ activeMonth=ms.value; subscribeAll(); render(); };
     const ws=document.getElementById('weekSelect');
     ws.innerHTML=WEEKS.map(w=>`<option value="${w}"${w===activeWeek?' selected':''}>Week ${w}</option>`).join('');
-    ws.onchange=()=>{ activeWeek=Number(ws.value); render(); };
+    ws.onchange=()=>{ activeWeek=Number(ws.value); subscribeAll(); render(); };
   }
   function buildTabs(){
     const el=document.getElementById('tabs'); el.innerHTML='';
@@ -224,62 +285,56 @@
     trh.innerHTML='<th class="name">Student</th>'+PERIODS.map(p=>`<th>P${p}</th>`).join('')+'<th>Total</th><th></th>';
     thead.appendChild(trh); table.appendChild(thead);
     const tbody=document.createElement('tbody');
-    G().students.forEach((name,idx)=>{
+    students().forEach((name,idx)=>{
       const tr=document.createElement('tr');
       const tdName=document.createElement('td'); tdName.className='name';
-      const ni=document.createElement('input'); ni.className='nameinput'; ni.value=name;
-      ni.onchange=()=>{ G().students[idx]=ni.value.trim()||name; save(); };
+      const ni=document.createElement('input'); ni.className='nameinput'; ni.value=name; ni.disabled=!canWrite;
+      ni.onchange=()=>{ const list=students().slice(); list[idx]=ni.value.trim()||name; writeRoster(activeGrade,list); };
       tdName.appendChild(ni); tr.appendChild(tdName);
       PERIODS.forEach(p=>{
         const td=document.createElement('td');
         const inp=document.createElement('input');
-        inp.type='number'; inp.min=0; inp.max=10; inp.className='score';
+        inp.type='number'; inp.min=0; inp.max=10; inp.className='score'; inp.disabled=!canWrite;
         inp.value=getScore(day,p,idx);
         applyFlag(inp,inp.value);
         inp.onchange=()=>{
           const v=inp.value.trim();
-          const bucket=ensure(day,p);
-          if(v==="") delete bucket[idx]; else bucket[idx]=Math.max(0,Math.min(10,Number(v)));
-          applyFlag(inp, bucket[idx]===undefined?"":bucket[idx]);
-          save(); renderSummary(day); refreshTotal(tr,idx,day);
+          const w=JSON.parse(JSON.stringify(weekCache));
+          if(!w.scores[day]) w.scores[day]={};
+          if(!w.scores[day][p]) w.scores[day][p]={};
+          if(v==="") delete w.scores[day][p][idx]; else w.scores[day][p][idx]=Math.max(0,Math.min(10,Number(v)));
+          applyFlag(inp, w.scores[day][p][idx]===undefined?"":w.scores[day][p][idx]);
+          writeWeek(w); renderSummary(day);
         };
         td.appendChild(inp); tr.appendChild(td);
       });
       const tdTotal=document.createElement('td'); tdTotal.className='total'; tdTotal.textContent=dayTotal(idx,day);
       tr.appendChild(tdTotal);
       const tdRm=document.createElement('td');
-      const rm=document.createElement('button'); rm.className='rm'; rm.textContent='✕'; rm.title='Remove student';
-      rm.onclick=()=>{
-        if(!confirm('Remove '+name+' from Grade '+activeGrade+'\'s roster?')) return;
-        G().students.splice(idx,1);
-        Object.values(G().weeks).forEach(w=>{
-          DAYS.forEach(d=>PERIODS.forEach(p=>{
-            const bucket=w.scores[d]&&w.scores[d][p]; if(!bucket) return;
-            const ns={}; Object.keys(bucket).forEach(k=>{ const ik=Number(k);
-              if(ik<idx) ns[ik]=bucket[k]; else if(ik>idx) ns[ik-1]=bucket[k]; });
-            w.scores[d][p]=ns;
-          }));
-        });
-        save(); render();
-      };
-      tdRm.appendChild(rm); tr.appendChild(tdRm);
+      if(canWrite){
+        const rm=document.createElement('button'); rm.className='rm'; rm.textContent='✕'; rm.title='Remove student';
+        rm.onclick=()=>{
+          if(!confirm('Remove '+name+' from Grade '+activeGrade+'\'s roster?')) return;
+          const list=students().slice(); list.splice(idx,1);
+          writeRoster(activeGrade,list);
+        };
+        tdRm.appendChild(rm);
+      }
+      tr.appendChild(tdRm);
       tbody.appendChild(tr);
     });
     table.appendChild(tbody); wrap.appendChild(table);
     return wrap;
-  }
-  function refreshTotal(tr,idx,day){
-    const cells=tr.querySelectorAll('td'); cells[PERIODS.length+1].textContent=dayTotal(idx,day);
   }
 
   function renderSummary(day){
     const el=document.getElementById('summary-'+day); if(!el) return;
     let html='';
     PERIODS.forEach(p=>{
-      const bucket=(W().scores[day]&&W().scores[day][p])||{};
+      const bucket=(weekCache.scores[day]&&weekCache.scores[day][p])||{};
       const hi=[],lo=[];
       Object.keys(bucket).forEach(k=>{
-        const v=bucket[k]; const nm=G().students[Number(k)]; if(!nm) return;
+        const v=bucket[k]; const nm=students()[Number(k)]; if(!nm) return;
         if(v>=HI) hi.push(nm); else if(v<=LO) lo.push(nm);
       });
       if(hi.length||lo.length){
@@ -296,11 +351,13 @@
     const panel=document.createElement('div'); panel.id='panel-'+day;
     panel.style.display = (day===activeTab)?'block':'none';
     panel.appendChild(buildDayTable(day));
-    const addRow=document.createElement('div'); addRow.className='addrow';
-    const addInput=document.createElement('input'); addInput.placeholder='Add student name';
-    const addBtn=document.createElement('button'); addBtn.className='btn secondary'; addBtn.textContent='+ Add';
-    addBtn.onclick=()=>{ const v=addInput.value.trim(); if(!v) return; G().students.push(v); addInput.value=''; save(); render(); };
-    addRow.appendChild(addInput); addRow.appendChild(addBtn); panel.appendChild(addRow);
+    if(canWrite){
+      const addRow=document.createElement('div'); addRow.className='addrow';
+      const addInput=document.createElement('input'); addInput.placeholder='Add student name';
+      const addBtn=document.createElement('button'); addBtn.className='btn secondary'; addBtn.textContent='+ Add';
+      addBtn.onclick=()=>{ const v=addInput.value.trim(); if(!v) return; const list=students().slice(); list.push(v); addInput.value=''; writeRoster(activeGrade,list); };
+      addRow.appendChild(addInput); addRow.appendChild(addBtn); panel.appendChild(addRow);
+    }
     const secTitle=document.createElement('div'); secTitle.className='section-title';
     secTitle.textContent='Period flags for '+day+' (score 8+ or 5 and below)';
     panel.appendChild(secTitle);
@@ -310,25 +367,42 @@
     photoTitle.textContent='📷 Hard-copy photo for '+day;
     panel.appendChild(photoTitle);
     const photoBox=document.createElement('div');
-    const existing=W().photos[day];
-    if(existing){
-      photoBox.innerHTML='<img src="'+existing+'" style="max-width:220px;max-height:160px;border:1px solid var(--line);border-radius:6px;display:block;margin-bottom:6px">';
-      const rmP=document.createElement('button'); rmP.className='btn secondary'; rmP.textContent='Remove photo';
-      rmP.onclick=()=>{ delete W().photos[day]; save(); render(); };
-      photoBox.appendChild(rmP);
-    } else {
+    const existingId=weekCache.photos&&weekCache.photos[day];
+    if(existingId){
+      const im=document.createElement('img');
+      im.style.cssText='max-width:220px;max-height:160px;border:1px solid var(--line);border-radius:6px;display:block;margin-bottom:6px';
+      im.alt='Loading photo…';
+      photoBox.appendChild(im);
+      gs('getPhoto',existingId).then(d=>{ im.src=d; }).catch(()=>{ im.alt='Could not load photo'; });
+      if(canWrite){
+        const rmP=document.createElement('button'); rmP.className='btn secondary'; rmP.textContent='Remove photo';
+        rmP.onclick=async ()=>{
+          const w=JSON.parse(JSON.stringify(weekCache));
+          delete w.photos[day];
+          if(hasGS){ try{ await gs('deletePhoto',existingId); }catch(e){} }
+          writeWeek(w);
+        };
+        photoBox.appendChild(rmP);
+      }
+    } else if(canWrite && hasGS){
       const fi=document.createElement('input'); fi.type='file'; fi.accept='image/*'; fi.capture='environment';
-      fi.onchange=()=>{
+      fi.onchange=async ()=>{
         const f=fi.files[0]; if(!f) return;
-        const reader=new FileReader();
-        reader.onload=()=>{ W().photos[day]=reader.result; save(); render(); };
-        reader.readAsDataURL(f);
+        setStatus('🔄 Uploading photo…');
+        try{
+          const b64=await shrinkImage(f,1600);
+          const id=await gs('uploadPhoto',f.name.replace(/\.[^.]+$/,'')+'.jpg','image/jpeg',b64);
+          const w=JSON.parse(JSON.stringify(weekCache));
+          w.photos[day]=id;
+          writeWeek(w);
+        }catch(e){ setStatus('⚠️ Photo upload failed'); }
       };
       photoBox.appendChild(fi);
-      const note=document.createElement('div'); note.className='empty';
-      note.style.marginTop='6px';
-      note.textContent='This just attaches the photo as your record — it does not read the marks automatically. To have the marks filled in for you, upload this same photo to Claude in your chat and ask it to fill in this sheet; Claude can read the handwriting and hand you back an updated file.';
+      const note=document.createElement('div'); note.className='empty'; note.style.marginTop='6px';
+      note.textContent='This attaches the photo as a record — it does not read the marks. Upload the same photo to Claude in chat and ask it to fill in the marks for you.';
       photoBox.appendChild(note);
+    } else if(!hasGS){
+      photoBox.innerHTML='<div class="empty">Photo upload needs the Drive connection.</div>';
     }
     panel.appendChild(photoBox);
     return panel;
@@ -337,10 +411,9 @@
   function buildOverviewPanel(){
     const panel=document.createElement('div'); panel.id='panel-Overview';
     panel.style.display = (activeTab==='Overview')?'block':'none';
-
     const ranked=rankedList().filter(s=>s.avg!==null).sort((a,b)=>b.avg-a.avg);
     const topIdx=new Set(ranked.slice(0,3).map(s=>s.idx));
-    const bottomIdx=new Set(ranked.length>3 ? ranked.slice(-3).map(s=>s.idx) : []);
+    const bottomIdx=new Set(ranked.length>3?ranked.slice(-3).map(s=>s.idx):[]);
 
     const wrap=document.createElement('div'); wrap.className='tablewrap';
     const table=document.createElement('table');
@@ -349,19 +422,16 @@
     trh.innerHTML='<th class="name">Student</th>'+DAYS.map(d=>`<th>${d}<br>Total</th>`).join('')+'<th>Weekly<br>Avg</th>';
     thead.appendChild(trh); table.appendChild(thead);
     const tbody=document.createElement('tbody');
-    G().students.forEach((name,idx)=>{
+    students().forEach((name,idx)=>{
       const tr=document.createElement('tr');
-      if(topIdx.has(idx)) tr.className='top';
-      else if(bottomIdx.has(idx)) tr.className='bottom';
-      let row='<td class="name">'+ (topIdx.has(idx)?'🏆 ':'') + (bottomIdx.has(idx)?'⚠️ ':'') + name + '</td>';
+      if(topIdx.has(idx)) tr.className='top'; else if(bottomIdx.has(idx)) tr.className='bottom';
+      let row='<td class="name">'+(topIdx.has(idx)?'🏆 ':'')+(bottomIdx.has(idx)?'⚠️ ':'')+name+'</td>';
       DAYS.forEach(d=>{ row+='<td>'+dayTotal(idx,d)+'</td>'; });
       const av=weeklyAvg(idx);
       row+='<td class="total">'+(av===null?'—':av.toFixed(1))+'</td>';
-      tr.innerHTML=row;
-      tbody.appendChild(tr);
+      tr.innerHTML=row; tbody.appendChild(tr);
     });
-    table.appendChild(tbody); wrap.appendChild(table);
-    panel.appendChild(wrap);
+    table.appendChild(tbody); wrap.appendChild(table); panel.appendChild(wrap);
 
     const rewardBox=document.createElement('div'); rewardBox.className='reward';
     let rhtml='<div style="font-weight:700;font-size:1rem">🏆 Top 3 — Friday Reward ('+activeMonth+' Week '+activeWeek+')</div>';
@@ -380,7 +450,7 @@
 
   function render(){
     document.getElementById('gradeLine').textContent=
-      'Grade '+activeGrade+' · '+activeMonth+' · Week '+activeWeek+' · scores per period (0–10) · collected at the end of period 6 each day';
+      'Grade '+activeGrade+' · '+activeMonth+' · Week '+activeWeek+' · scores per period (0–10)'+(canWrite?'':' · read-only');
     buildGradeTabs(); buildMonthWeek(); buildTabs();
     const panels=document.getElementById('panels'); panels.innerHTML='';
     DAYS.forEach(d=>panels.appendChild(buildDayPanel(d)));
@@ -388,31 +458,29 @@
     DAYS.forEach(d=>renderSummary(d));
   }
 
+  // ---------- print / excel / roster upload ----------
   function esc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;'); }
   function printTable(days){
-    const w=W();
     let h='<table class="ptable"><thead><tr><th class="name" rowspan="2">Student</th>';
     days.forEach(d=>{ h+=`<th colspan="8">${d}</th>`; });
     h+='</tr><tr>';
     days.forEach(()=>{ PERIODS.forEach(p=>{ h+=`<th>P${p}</th>`; }); h+='<th>Total</th>'; });
     h+='</tr></thead><tbody>';
-    G().students.forEach((name,idx)=>{
+    students().forEach((name,idx)=>{
       h+='<tr><td class="name">'+esc(name)+'</td>';
       days.forEach(d=>{
-        PERIODS.forEach(p=>{ h+='<td>'+esc(getScore(d,p,idx,w))+'</td>'; });
-        h+='<td><b>'+esc(dayTotal(idx,d,w))+'</b></td>';
+        PERIODS.forEach(p=>{ h+='<td>'+esc(getScore(d,p,idx))+'</td>'; });
+        h+='<td><b>'+esc(dayTotal(idx,d))+'</b></td>';
       });
       h+='</tr>';
     });
-    h+='</tbody></table>';
-    return h;
+    h+='</tbody></table>'; return h;
   }
   function printWeek(){
     const area=document.getElementById('printArea');
     let html='<div class="phead">Um Al-Qura Islamic School — Behavior Tracking Sheet</div>';
     html+='<div class="psub">Grade '+esc(activeGrade)+' &nbsp;·&nbsp; '+esc(activeMonth)+' &nbsp;·&nbsp; Week '+esc(activeWeek)+'</div>';
-    html+=printTable(['Mon','Tue']);
-    html+='<div class="pbreak"></div>';
+    html+=printTable(['Mon','Tue'])+'<div class="pbreak"></div>';
     html+='<div class="phead">Um Al-Qura Islamic School — Behavior Tracking Sheet</div>';
     html+='<div class="psub">Grade '+esc(activeGrade)+' &nbsp;·&nbsp; '+esc(activeMonth)+' &nbsp;·&nbsp; Week '+esc(activeWeek)+'</div>';
     html+=printTable(['Wed','Thu','Fri']);
@@ -427,69 +495,54 @@
         html+='</ol>';
       }
     }
-    area.innerHTML=html;
-    window.print();
+    area.innerHTML=html; window.print();
   }
 
   function exportExcel(){
-    if(typeof XLSX==='undefined'){
-      alert('Excel export needs an internet connection the first time this page loads (it loads a small library). Please reconnect and try again.');
-      return;
-    }
+    if(typeof XLSX==='undefined'){ alert('Excel export needs an internet connection to load a small library. Please reconnect and try again.'); return; }
     const wb=XLSX.utils.book_new();
-    const w=W();
     DAYS.forEach(day=>{
       const rows=[['Student',...PERIODS.map(p=>'P'+p),'Total']];
-      G().students.forEach((name,idx)=>{
-        rows.push([name, ...PERIODS.map(p=>{ const v=getScore(day,p,idx,w); return v===''?'':v; }), dayTotal(idx,day,w)]);
+      students().forEach((name,idx)=>{
+        rows.push([name, ...PERIODS.map(p=>{ const v=getScore(day,p,idx); return v===''?'':v; }), dayTotal(idx,day)]);
       });
-      const ws=XLSX.utils.aoa_to_sheet(rows);
-      XLSX.utils.book_append_sheet(wb, ws, day);
+      XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(rows), day);
     });
-    const ranked=rankedList(w);
+    const ranked=rankedList();
     const sorted=[...ranked].filter(s=>s.avg!==null).sort((a,b)=>b.avg-a.avg);
     const topIdx=new Set(sorted.slice(0,3).map(s=>s.idx));
-    const bottomIdx=new Set(sorted.length>3 ? sorted.slice(-3).map(s=>s.idx) : []);
+    const bottomIdx=new Set(sorted.length>3?sorted.slice(-3).map(s=>s.idx):[]);
     const orows=[['Student','Mon Total','Tue Total','Wed Total','Thu Total','Fri Total','Weekly Avg','Note']];
     ranked.forEach(s=>{
-      const note = topIdx.has(s.idx) ? 'Top 3 - Friday Reward' : (bottomIdx.has(s.idx) ? 'Bottom 3 - Needs Support' : '');
-      orows.push([s.name, dayTotal(s.idx,'Mon',w), dayTotal(s.idx,'Tue',w), dayTotal(s.idx,'Wed',w), dayTotal(s.idx,'Thu',w), dayTotal(s.idx,'Fri',w), s.avg===null?'':Number(s.avg.toFixed(1)), note]);
+      const note=topIdx.has(s.idx)?'Top 3 - Friday Reward':(bottomIdx.has(s.idx)?'Bottom 3 - Needs Support':'');
+      orows.push([s.name, dayTotal(s.idx,'Mon'), dayTotal(s.idx,'Tue'), dayTotal(s.idx,'Wed'), dayTotal(s.idx,'Thu'), dayTotal(s.idx,'Fri'), s.avg===null?'':Number(s.avg.toFixed(1)), note]);
     });
-    const ows=XLSX.utils.aoa_to_sheet(orows);
-    XLSX.utils.book_append_sheet(wb, ows, 'Weekly Overview');
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(orows), 'Weekly Overview');
     XLSX.writeFile(wb, 'Grade'+activeGrade+'_'+activeMonth+'_Week'+activeWeek+'_Behavior.xlsx');
   }
 
   function clearWeek(){
-    if(!confirm('Clear ALL scores and photos for Grade '+activeGrade+' — '+activeMonth+' Week '+activeWeek+'? This cannot be undone. (Export or download the PDF first if you need a record.)')) return;
-    G().weeks[weekKey()]={scores:{Mon:{},Tue:{},Wed:{},Thu:{},Fri:{}},photos:{}};
-    save(); render();
+    if(!confirm('Clear ALL scores and photos for Grade '+activeGrade+' — '+activeMonth+' Week '+activeWeek+'? This cannot be undone.')) return;
+    writeWeek(emptyWeek());
   }
 
   function uploadRoster(){
-    if(typeof XLSX==='undefined'){
-      alert('Roster upload needs an internet connection the first time this page loads (it loads a small library). Please reconnect and try again.');
-      return;
-    }
+    if(typeof XLSX==='undefined'){ alert('Roster upload needs an internet connection to load a small library. Please reconnect and try again.'); return; }
     document.getElementById('rosterFile').click();
   }
   function handleRosterFile(){
-    const f=document.getElementById('rosterFile').files[0];
-    if(!f) return;
+    const f=document.getElementById('rosterFile').files[0]; if(!f) return;
     const reader=new FileReader();
-    reader.onload=(e)=>{
+    reader.onload=async (e)=>{
       try{
-        const wb=XLSX.read(e.target.result, {type:'binary'});
+        const wb=XLSX.read(e.target.result,{type:'binary'});
         const ws=wb.Sheets[wb.SheetNames[0]];
-        const rows=XLSX.utils.sheet_to_json(ws, {defval:''});
+        const rows=XLSX.utils.sheet_to_json(ws,{defval:''});
         if(!rows.length){ alert('That file looks empty.'); return; }
         const keys=Object.keys(rows[0]);
-        const gradeKey=keys.find(k=>/^grade$/i.test(k.trim())) || keys.find(k=>/grade/i.test(k));
-        const nameKey=keys.find(k=>/^student\s*name$/i.test(k.trim())) || keys.find(k=>/name/i.test(k));
-        if(!gradeKey || !nameKey){
-          alert('Could not find "Grade" and "Student Name" columns. Found columns: '+keys.join(', '));
-          return;
-        }
+        const gradeKey=keys.find(k=>/^grade$/i.test(k.trim()))||keys.find(k=>/grade/i.test(k));
+        const nameKey=keys.find(k=>/^student\s*name$/i.test(k.trim()))||keys.find(k=>/name/i.test(k));
+        if(!gradeKey||!nameKey){ alert('Could not find "Grade" and "Student Name" columns. Found: '+keys.join(', ')); return; }
         const byGrade={};
         rows.forEach(r=>{
           const g=String(r[gradeKey]).trim().replace(/[^0-9]/g,'');
@@ -500,14 +553,11 @@
         const summary=Object.keys(byGrade).sort().map(g=>'Grade '+g+': '+byGrade[g].length+' students').join('\n');
         if(!Object.keys(byGrade).length){ alert('No rows matched a valid grade (1-8) with a name.'); return; }
         if(!confirm('This will REPLACE the current roster for these grades:\n\n'+summary+'\n\nContinue?')) return;
-        Object.keys(byGrade).forEach(g=>{ state.grades[g].students=byGrade[g]; });
-        save(); render();
-        alert('Roster updated:\n'+summary);
-      }catch(err){
-        alert('Could not read that file. Make sure it is a valid Excel (.xlsx) or CSV file.');
-      }finally{
-        document.getElementById('rosterFile').value='';
-      }
+        for(const g of Object.keys(byGrade)){ await writeRoster(g, byGrade[g]); }
+        setStatus('🔄 Saving to Drive…'); await idle();
+        alert('Roster saved to Google Drive:\n'+summary);
+      }catch(err){ alert('Could not read that file. Make sure it is a valid Excel (.xlsx) or CSV file.'); }
+      finally{ document.getElementById('rosterFile').value=''; }
     };
     reader.readAsBinaryString(f);
   }
@@ -517,7 +567,9 @@
   document.getElementById('clearBtn').onclick=clearWeek;
   document.getElementById('rosterBtn').onclick=uploadRoster;
   document.getElementById('rosterFile').onchange=handleRosterFile;
+
   render();
+  initBackend();
 })();
 </script>
 </body>
