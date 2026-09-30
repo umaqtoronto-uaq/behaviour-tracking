@@ -364,7 +364,7 @@
     const summary=document.createElement('div'); summary.id='summary-'+day; panel.appendChild(summary);
 
     if(canWrite && hasGS){
-      const rt=document.createElement('div'); rt.className='section-title'; rt.textContent='✨ Read marks from a photo — '+day; panel.appendChild(rt);
+      const rt=document.createElement('div'); rt.className='section-title'; rt.textContent='✨ Read marks from a photo — '+day+' (fills the table above)'; panel.appendChild(rt);
       const rbox=document.createElement('div'); rbox.className='addrow';
       const psel=document.createElement('select'); psel.innerHTML=PERIODS.map(p=>'<option value="'+p+'">Period '+p+'</option>').join('');
       const rf=document.createElement('input'); rf.type='file'; rf.accept='image/*'; rf.capture='environment';
@@ -434,7 +434,7 @@
       };
       photoBox.appendChild(fi);
       const note=document.createElement('div'); note.className='empty'; note.style.marginTop='6px';
-      note.textContent='This attaches the photo as a record — it does not read the marks. Upload the same photo to Claude in chat and ask it to fill in the marks for you.';
+      note.textContent='This only stores the photo in Drive as a record for the day. To fill in marks, use “Read marks from a photo” above.';
       photoBox.appendChild(note);
     } else if(!hasGS){
       photoBox.innerHTML='<div class="empty">Photo upload needs the Drive connection.</div>';
