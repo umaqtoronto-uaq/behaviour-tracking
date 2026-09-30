@@ -163,7 +163,7 @@
 
   // ---------- backend wiring (Google Drive via Apps Script) ----------
   // >>> PASTE your Apps Script Web app URL between the quotes <<<
-  const API_URL='https://script.google.com/macros/s/AKfycbzpv0Ew1OwilnHx_7dIicwY713W88IfbGbrqz8u6E0EN38yoUhK5qnRYCSe1Cb4fsqT/exec';
+  const API_URL='https://script.google.com/macros/s/AKfycbwp1qCQ_b5rNZbbuF1a4bctqYzpzoWZKbYH61AYdklSvhFVcjYbF-5TXxz5042m0kew/exec';
   const hasGS = API_URL.indexOf('https://')===0;
   async function gs(fn){
     const args=Array.prototype.slice.call(arguments,1);
@@ -177,6 +177,18 @@
   // Turns a technical error into plain instructions
   function explainError(e){
     const m=String(e&&e.message?e.message:e);
+    return friendlyError(m)+'\n\n(Details: '+m.slice(0,300)+')';
+  }
+  function friendlyError(m){
+    if(/^AI error/.test(m)){
+      if(/SERVICE_DISABLED|has not been used|is disabled/i.test(m)) return 'The Gemini API is switched off for the project your key belongs to. Create the key again at aistudio.google.com (Get API key → Create API key) and paste the new key into Script properties.';
+      if(/API_KEY_INVALID|API key not valid|API key expired/i.test(m)) return 'The GEMINI_API_KEY in Script properties is wrong. Copy the key again from aistudio.google.com and paste it (with no spaces) into Script properties.';
+      if(/location is not supported|FAILED_PRECONDITION/i.test(m)) return 'Gemini says the free tier is not available for this account or region.';
+      if(/AI error 429/.test(m)) return 'The free Gemini limit has been reached for now. Wait a few minutes (or until tomorrow if it keeps happening) and try again.';
+      if(/AI error 404/.test(m)) return 'The Gemini model could not be found. Send Claude this message so the model name can be updated.';
+      if(/AI error (5\d\d)/.test(m)) return 'The photo-reading service is busy right now. Wait a minute and try again.';
+      return 'Gemini refused the request.';
+    }
     if(/unknown function/i.test(m))
       return 'Your Google Apps Script is still running an OLD version that cannot read photos.\n\nIn the Apps Script editor: Deploy → Manage deployments → ✏️ (Edit) → Version: "New version" → Deploy.\nThen try the photo again.';
     if(/ANTHROPIC_API_KEY|GEMINI_API_KEY/.test(m))
@@ -438,16 +450,24 @@
       psel.innerHTML=PERIODS.map(p=>'<option value="'+p+'">Period '+p+'</option>').join('');
       psel.value=String(lastPeriod[day]||1);
       psel.onchange=()=>{ lastPeriod[day]=Number(psel.value); };
-      const rf=document.createElement('input'); rf.type='file'; rf.accept='image/*'; rf.style.display='none';
+      // Camera input: opens the phone camera straight away
+      const camIn=document.createElement('input'); camIn.type='file'; camIn.accept='image/*'; camIn.setAttribute('capture','environment'); camIn.style.display='none';
+      // Gallery input: lets you pick a photo you already took
+      const galIn=document.createElement('input'); galIn.type='file'; galIn.accept='image/*'; galIn.style.display='none';
+      const onPick=inp=>()=>{ const f=inp.files[0]; inp.value=''; if(f) readPhoto(day,Number(psel.value),f); };
+      camIn.onchange=onPick(camIn); galIn.onchange=onPick(galIn);
       const camBtn=document.createElement('button'); camBtn.className='btn';
-      camBtn.textContent = busyReading ? '⏳ Reading photo…' : '📸 Take / choose photo';
+      camBtn.textContent = busyReading ? '⏳ Reading photo…' : '📸 Take photo';
       camBtn.disabled = busyReading;
-      camBtn.onclick=()=>rf.click();
-      rf.onchange=()=>{ const f=rf.files[0]; rf.value=''; if(f) readPhoto(day,Number(psel.value),f); };
-      rbox.appendChild(psel); rbox.appendChild(camBtn); rbox.appendChild(rf);
+      camBtn.onclick=()=>camIn.click();
+      const galBtn=document.createElement('button'); galBtn.className='btn secondary';
+      galBtn.textContent='🖼️ Choose from gallery';
+      galBtn.disabled = busyReading;
+      galBtn.onclick=()=>galIn.click();
+      rbox.appendChild(psel); rbox.appendChild(camBtn); rbox.appendChild(galBtn); rbox.appendChild(camIn); rbox.appendChild(galIn);
       pbox.appendChild(rbox);
       const rn=document.createElement('div'); rn.className='empty'; rn.style.marginTop='8px';
-      rn.textContent='1) Pick the period  2) Take a photo of that period’s sheet. The marks fill into the table below and the photo is saved in Drive. Always double-check the marks.';
+      rn.textContent='1) Pick the period  2) Tap “Take photo” to use the camera, or “Choose from gallery” for a photo you already took. The marks fill into the table below and the photo is saved in Drive. Always double-check the marks.';
       pbox.appendChild(rn);
       panel.appendChild(pbox);
       const gap=document.createElement('div'); gap.style.height='14px'; panel.appendChild(gap);
