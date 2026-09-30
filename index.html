@@ -49,7 +49,7 @@
   tr.bottom td{background:var(--bad)}
   input.nameinput{border:none;background:transparent;color:var(--fg);font-weight:600;width:100%;font-size:.85rem}
   .rm{cursor:pointer;color:var(--muted);border:none;background:transparent;font-size:1rem}
-  .addrow{margin-top:8px;display:flex;gap:6px}
+  .addrow{margin-top:8px;display:flex;gap:6px;flex-wrap:wrap;align-items:center}
   .addrow input{padding:6px 8px;border:1px solid var(--line);border-radius:6px;background:var(--bg);color:var(--fg)}
   .section-title{margin:18px 0 8px;font-size:1rem;font-weight:700}
   .chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
@@ -64,6 +64,11 @@
   .watch ol{margin:8px 0 0;padding-left:22px}
   .watch li{margin:4px 0;font-weight:600}
   .legend{font-size:.78rem;color:var(--muted);margin-top:6px}
+  .gallery{display:flex;flex-wrap:wrap;gap:10px}
+  .gallery .ph{border:1px solid var(--line);border-radius:8px;padding:6px;background:var(--bg)}
+  .gallery .ph img{max-width:180px;max-height:130px;border-radius:6px;display:block;margin-bottom:4px}
+  .gallery .ph .lbl{font-size:.8rem;font-weight:600;margin-bottom:4px}
+  .photobox{border:1.5px dashed var(--accent);border-radius:10px;padding:12px;background:#f7f5ff}
   #printArea{display:none}
   @media print{
     body>*:not(#printArea){display:none!important}
@@ -117,12 +122,14 @@
 
   let canWrite=true;
   let rosterCache={}, weekCache=emptyWeek();
-  let unsubRoster=null, unsubWeek=null;
   let activeGrade="1";
   const now=new Date();
   let activeMonth=MONTHS[now.getMonth()];
   let activeWeek=1;
   let activeTab="Mon";
+  let busyReading=false;          // true while a photo is being read
+  const lastPeriod={};            // remembers the chosen period per day
+  const photoCache={};            // photo id -> data URL (avoids re-downloading on every redraw)
 
   function weekId(){ return activeGrade+'_'+activeMonth+'_W'+activeWeek; }
   function students(){ return rosterCache[activeGrade]||[]; }
@@ -151,7 +158,7 @@
   function setStatus(text,bg){
     const el=document.getElementById('statusPill');
     el.textContent=text;
-    if(bg) el.style.background=bg;
+    el.style.background=bg||'rgba(255,255,255,.18)';
   }
 
   // ---------- backend wiring (Google Drive via Apps Script) ----------
@@ -160,16 +167,28 @@
   const hasGS = API_URL.indexOf('https://')===0;
   async function gs(fn){
     const args=Array.prototype.slice.call(arguments,1);
-    let pass=null; try{ pass=localStorage.getItem('bt_pass'); }catch(e){}
-    if(!pass){ pass=prompt('Enter the tracker passcode:'); if(!pass) throw new Error('no passcode'); }
-    const r=await fetch(API_URL,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({token:pass,fn:fn,args:args})});
-    const j=await r.json();
-    if(!j.ok){
-      if(j.error==='unauthorized'){ try{ localStorage.removeItem('bt_pass'); }catch(e){} }
-      throw new Error(j.error);
-    }
-    try{ localStorage.setItem('bt_pass',pass); }catch(e){}
+    const r=await fetch(API_URL,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({fn:fn,args:args})});
+    const raw=await r.text();
+    let j;
+    try{ j=JSON.parse(raw); }catch(e){ throw new Error('NOT_JSON: '+raw.slice(0,150)); }
+    if(!j.ok) throw new Error(j.error);
     return j.result;
+  }
+  // Turns a technical error into plain instructions
+  function explainError(e){
+    const m=String(e&&e.message?e.message:e);
+    if(/unknown function/i.test(m))
+      return 'Your Google Apps Script is still running an OLD version that cannot read photos.\n\nIn the Apps Script editor: Deploy → Manage deployments → ✏️ (Edit) → Version: "New version" → Deploy.\nThen try the photo again.';
+    if(/ANTHROPIC_API_KEY/.test(m))
+      return 'The photo-reading key is missing.\n\nIn the Apps Script editor: ⚙️ Project Settings → Script properties → Add property:\nName: ANTHROPIC_API_KEY\nValue: your API key\nThen try again.';
+    if(/UrlFetchApp|permission|authoriz/i.test(m))
+      return 'Apps Script has not been given permission to contact the photo-reading service.\n\nIn the Apps Script editor: choose "setupCheck" in the function menu at the top, click ▶ Run, and click Allow on the permission screens. Then Deploy → Manage deployments → Edit → New version → Deploy.';
+    if(/AI error 401/.test(m)) return 'The ANTHROPIC_API_KEY in Script properties is wrong or has been revoked. Please paste a valid key.';
+    if(/AI error 400/.test(m) && /credit|balance|billing/i.test(m)) return 'The API account has no credit left. Add credit in the Anthropic Console, then try again.';
+    if(/AI error (429|529|5\d\d)/.test(m)) return 'The photo-reading service is busy right now. Wait a minute and try again.';
+    if(/NOT_JSON/.test(m)) return 'The Apps Script web app sent back an error page instead of data.\n\nCheck: Deploy → Manage deployments → Edit → "Who has access" must be "Anyone", then deploy a New version.';
+    if(/Failed to fetch|NetworkError|Load failed/i.test(m)) return 'Could not reach Google. Check the internet connection and try again.';
+    return 'Could not read the photo: '+m;
   }
   const sleep=ms=>new Promise(r=>setTimeout(r,ms));
   const pending={}; let flushing=false, retryTimer=null;
@@ -212,6 +231,7 @@
       rosterCache[g]=(r[0]&&r[0].list)||[];
       weekCache=r[1]||emptyWeek();
       if(!weekCache.photos) weekCache.photos={};
+      if(!weekCache.scores) weekCache.scores={Mon:{},Tue:{},Wed:{},Thu:{},Fri:{}};
       setStatus('🟢 Synced with Google Drive');
       render();
     }catch(e){ if(t===loadToken) setStatus('⚠️ Could not load from Drive','rgba(255,80,80,.4)'); }
@@ -239,6 +259,60 @@
       img.onerror=()=>rej(new Error('bad image'));
       img.src=url;
     });
+  }
+  function loadPhoto(id,im){
+    if(photoCache[id]){ im.src=photoCache[id]; return; }
+    gs('getPhoto',id).then(d=>{ photoCache[id]=d; im.src=d; }).catch(()=>{ im.alt='Could not load photo'; });
+  }
+
+  // ---------- ONE photo = read the marks + keep the photo ----------
+  async function readPhoto(day,p,file){
+    const names=students().slice(), wid=weekId();
+    if(!names.length){ alert('Upload the roster first.'); return; }
+    busyReading=true; render();
+    setStatus('🔄 Reading Period '+p+' marks from photo… (10–30 sec)');
+    const finish=(msg,bg)=>{ busyReading=false; render(); setStatus(msg,bg); };
+
+    let b64;
+    try{ b64=await shrinkImage(file,2000); }
+    catch(e){ finish('⚠️ Could not open photo','rgba(255,80,80,.4)'); alert('That file could not be opened as a picture. Please try again with a normal photo (JPG/PNG).'); return; }
+
+    // 1) read the marks (the important part)
+    let marks;
+    try{ marks=await gs('extractMarks',b64,names,p); }
+    catch(e){ finish('⚠️ Could not read photo','rgba(255,80,80,.4)'); alert(explainError(e)); return; }
+
+    // 2) keep the photo in Drive as a record (a failure here doesn't block the marks)
+    let photoId=null;
+    try{ photoId=await gs('uploadPhoto',wid+'_'+day+'_P'+p+'.jpg','image/jpeg',b64); }catch(e){}
+
+    busyReading=false;
+    if(wid!==weekId()){
+      render(); setStatus('🟢 Synced with Google Drive');
+      alert('You changed the grade/month/week while the photo was being read, so nothing was filled in. Go back to that week and take the photo again.');
+      return;
+    }
+    const w=JSON.parse(JSON.stringify(weekCache));
+    if(!w.scores[day]) w.scores[day]={};
+    if(!w.scores[day][p]) w.scores[day][p]={};
+    let filled=0; const missed=[];
+    (Array.isArray(marks)?marks:[]).forEach(m=>{
+      const i=Number(m.index);
+      if(!names[i]) return;
+      if(m.score===null||m.score===undefined||m.score===''||isNaN(Number(m.score))){ missed.push(names[i]); return; }
+      w.scores[day][p][i]=Math.max(0,Math.min(10,Math.round(Number(m.score)))); filled++;
+    });
+    if(photoId){ if(!w.photos) w.photos={}; w.photos[day+'_P'+p]=photoId; }
+    lastPeriod[day]=p;
+    writeWeek(w);
+
+    if(!filled){
+      alert(day+' Period '+p+': no marks could be read from this photo.\n\nTips: take the photo straight-on in good light, make sure the names and marks are in focus, and check you picked the right period.');
+    } else {
+      alert(day+' Period '+p+': filled '+filled+' of '+names.length+' marks.'
+        +(missed.length?'\n\nCould not read: '+missed.join(', ')+'\n(type these in by hand)':'')
+        +'\n\nPlease check the marks against your sheet.');
+    }
   }
 
   // ---------- UI builders ----------
@@ -350,6 +424,36 @@
   function buildDayPanel(day){
     const panel=document.createElement('div'); panel.id='panel-'+day;
     panel.style.display = (day===activeTab)?'block':'none';
+
+    // --- Photo capture (reads marks AND keeps the photo) — placed at the top so it's easy to find ---
+    if(canWrite && hasGS){
+      const rt=document.createElement('div'); rt.className='section-title'; rt.style.marginTop='4px';
+      rt.textContent='📷 Photo of the sheet — '+day;
+      panel.appendChild(rt);
+      const pbox=document.createElement('div'); pbox.className='photobox';
+      const rbox=document.createElement('div'); rbox.className='addrow'; rbox.style.marginTop='0';
+      const psel=document.createElement('select');
+      psel.innerHTML=PERIODS.map(p=>'<option value="'+p+'">Period '+p+'</option>').join('');
+      psel.value=String(lastPeriod[day]||1);
+      psel.onchange=()=>{ lastPeriod[day]=Number(psel.value); };
+      const rf=document.createElement('input'); rf.type='file'; rf.accept='image/*'; rf.style.display='none';
+      const camBtn=document.createElement('button'); camBtn.className='btn';
+      camBtn.textContent = busyReading ? '⏳ Reading photo…' : '📸 Take / choose photo';
+      camBtn.disabled = busyReading;
+      camBtn.onclick=()=>rf.click();
+      rf.onchange=()=>{ const f=rf.files[0]; rf.value=''; if(f) readPhoto(day,Number(psel.value),f); };
+      rbox.appendChild(psel); rbox.appendChild(camBtn); rbox.appendChild(rf);
+      pbox.appendChild(rbox);
+      const rn=document.createElement('div'); rn.className='empty'; rn.style.marginTop='8px';
+      rn.textContent='1) Pick the period  2) Take a photo of that period’s sheet. The marks fill into the table below and the photo is saved in Drive. Always double-check the marks.';
+      pbox.appendChild(rn);
+      panel.appendChild(pbox);
+      const gap=document.createElement('div'); gap.style.height='14px'; panel.appendChild(gap);
+    } else if(!hasGS){
+      const n=document.createElement('div'); n.className='empty'; n.style.marginBottom='10px';
+      n.textContent='Photo reading needs the Drive connection.'; panel.appendChild(n);
+    }
+
     panel.appendChild(buildDayTable(day));
     if(canWrite){
       const addRow=document.createElement('div'); addRow.className='addrow';
@@ -363,83 +467,38 @@
     panel.appendChild(secTitle);
     const summary=document.createElement('div'); summary.id='summary-'+day; panel.appendChild(summary);
 
-    if(canWrite && hasGS){
-      const rt=document.createElement('div'); rt.className='section-title'; rt.textContent='✨ Read marks from a photo — '+day+' (fills the table above)'; panel.appendChild(rt);
-      const rbox=document.createElement('div'); rbox.className='addrow';
-      const psel=document.createElement('select'); psel.innerHTML=PERIODS.map(p=>'<option value="'+p+'">Period '+p+'</option>').join('');
-      const rf=document.createElement('input'); rf.type='file'; rf.accept='image/*'; rf.capture='environment';
-      rf.onchange=async ()=>{
-        const f=rf.files[0]; if(!f) return;
-        const p=Number(psel.value), names=students().slice(), wid=weekId();
-        if(!names.length){ alert('Upload the roster first.'); rf.value=''; return; }
-        setStatus('🔄 Reading marks from photo… (10–30 sec)');
-        try{
-          const b64=await shrinkImage(f,2000);
-          const marks=await gs('extractMarks',b64,names,p);
-          if(wid!==weekId()){ alert('You changed the grade/week while reading. Please take the photo again.'); setStatus('🟢 Synced with Google Drive'); return; }
-          const w=JSON.parse(JSON.stringify(weekCache));
-          if(!w.scores[day]) w.scores[day]={};
-          if(!w.scores[day][p]) w.scores[day][p]={};
-          let filled=0; const missed=[];
-          (marks||[]).forEach(m=>{
-            const i=Number(m.index);
-            if(m.score===null||m.score===undefined||m.score===''||isNaN(Number(m.score))||!names[i]){ if(names[i]) missed.push(names[i]); return; }
-            w.scores[day][p][i]=Math.max(0,Math.min(10,Math.round(Number(m.score)))); filled++;
-          });
-          writeWeek(w);
-          alert(day+' Period '+p+': filled '+filled+' of '+names.length+' marks.'+(missed.length?'\n\nCould not read: '+missed.join(', ')+'\n(type these in by hand)':'')+'\n\nPlease check the marks against your sheet.');
-        }catch(e){
-          setStatus('⚠️ Could not read photo','rgba(255,80,80,.4)');
-          alert('Could not read the photo: '+(e&&e.message?e.message:e));
-        }finally{ rf.value=''; }
-      };
-      rbox.appendChild(psel); rbox.appendChild(rf); panel.appendChild(rbox);
-      const rn=document.createElement('div'); rn.className='empty'; rn.style.marginTop='6px';
-      rn.textContent='Pick the period, then take a photo of that period’s sheet. Marks fill in automatically — always double-check them.';
-      panel.appendChild(rn);
+    // --- Saved photos for this day ---
+    const photos=weekCache.photos||{};
+    const keys=Object.keys(photos).filter(k=>k===day||k.indexOf(day+'_P')===0).sort();
+    if(keys.length){
+      const pt=document.createElement('div'); pt.className='section-title';
+      pt.textContent='🗂️ Saved sheet photos — '+day;
+      panel.appendChild(pt);
+      const gal=document.createElement('div'); gal.className='gallery';
+      keys.forEach(k=>{
+        const id=photos[k];
+        const box=document.createElement('div'); box.className='ph';
+        const lbl=document.createElement('div'); lbl.className='lbl';
+        lbl.textContent = k===day ? 'Day photo' : 'Period '+k.split('_P')[1];
+        box.appendChild(lbl);
+        const im=document.createElement('img'); im.alt='Loading photo…';
+        loadPhoto(id,im); box.appendChild(im);
+        if(canWrite){
+          const rmP=document.createElement('button'); rmP.className='btn secondary'; rmP.textContent='Remove photo';
+          rmP.onclick=()=>{
+            if(!confirm('Remove this photo? (The marks stay in the table.)')) return;
+            const w=JSON.parse(JSON.stringify(weekCache));
+            delete w.photos[k];
+            delete photoCache[id];
+            if(hasGS){ gs('deletePhoto',id).catch(()=>{}); }
+            writeWeek(w);
+          };
+          box.appendChild(rmP);
+        }
+        gal.appendChild(box);
+      });
+      panel.appendChild(gal);
     }
-    const photoTitle=document.createElement('div'); photoTitle.className='section-title';
-    photoTitle.textContent='📷 Hard-copy photo for '+day;
-    panel.appendChild(photoTitle);
-    const photoBox=document.createElement('div');
-    const existingId=weekCache.photos&&weekCache.photos[day];
-    if(existingId){
-      const im=document.createElement('img');
-      im.style.cssText='max-width:220px;max-height:160px;border:1px solid var(--line);border-radius:6px;display:block;margin-bottom:6px';
-      im.alt='Loading photo…';
-      photoBox.appendChild(im);
-      gs('getPhoto',existingId).then(d=>{ im.src=d; }).catch(()=>{ im.alt='Could not load photo'; });
-      if(canWrite){
-        const rmP=document.createElement('button'); rmP.className='btn secondary'; rmP.textContent='Remove photo';
-        rmP.onclick=async ()=>{
-          const w=JSON.parse(JSON.stringify(weekCache));
-          delete w.photos[day];
-          if(hasGS){ try{ await gs('deletePhoto',existingId); }catch(e){} }
-          writeWeek(w);
-        };
-        photoBox.appendChild(rmP);
-      }
-    } else if(canWrite && hasGS){
-      const fi=document.createElement('input'); fi.type='file'; fi.accept='image/*'; fi.capture='environment';
-      fi.onchange=async ()=>{
-        const f=fi.files[0]; if(!f) return;
-        setStatus('🔄 Uploading photo…');
-        try{
-          const b64=await shrinkImage(f,1600);
-          const id=await gs('uploadPhoto',f.name.replace(/\.[^.]+$/,'')+'.jpg','image/jpeg',b64);
-          const w=JSON.parse(JSON.stringify(weekCache));
-          w.photos[day]=id;
-          writeWeek(w);
-        }catch(e){ setStatus('⚠️ Photo upload failed'); }
-      };
-      photoBox.appendChild(fi);
-      const note=document.createElement('div'); note.className='empty'; note.style.marginTop='6px';
-      note.textContent='This only stores the photo in Drive as a record for the day. To fill in marks, use “Read marks from a photo” above.';
-      photoBox.appendChild(note);
-    } else if(!hasGS){
-      photoBox.innerHTML='<div class="empty">Photo upload needs the Drive connection.</div>';
-    }
-    panel.appendChild(photoBox);
     return panel;
   }
 
